@@ -11,6 +11,9 @@ from class_mrha import MRHATradingSystem
 # .env 파일 로드
 load_dotenv()
 
+slack = SlackNotifier()
+slack.send_notification("🔄 EC2에서 realtime_trader.py 실행 시작")
+
 def get_account_balance():
     """업비트 계좌 잔고 조회"""
     try:
