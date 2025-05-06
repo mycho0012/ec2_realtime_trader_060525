@@ -2,6 +2,6 @@ pandas==2.1.4
 numpy==1.26.2
 pyupbit==0.2.33
 requests==2.31.0
-notion-client-python==2.2.1
+notion-client==2.2.1
 slack-sdk==3.26.1
 python-dotenv==1.0.0
