@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import pyupbit
 import pandas as pd
@@ -10,9 +10,6 @@ from class_mrha import MRHATradingSystem
 
 # .env 파일 로드
 load_dotenv()
-
-slack = SlackNotifier()
-slack.send_notification("🔄 EC2에서 realtime_trader.py 실행 시작")
 
 def get_account_balance():
     """업비트 계좌 잔고 조회"""
@@ -266,27 +263,28 @@ def get_portfolio_data(balance_info):
         print(f"Error getting portfolio data: {e}")
         return []
 
-def wait_until_next_day():
-    """다음날 00:00까지 대기"""
+def wait_until_signal_generation_time():
+    """시그널 생성 시간(09:01:00)까지 대기"""
     now = datetime.now()
-    next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if now >= next_run:
-        next_run = next_run.replace(day=next_run.day + 1)
+    signal_time = now.replace(hour=9, minute=1, second=0, microsecond=0)
     
-    wait_seconds = (next_run - now).total_seconds()
-    print(f"다음 실행까지 {wait_seconds/3600:.1f}시간 대기 중...")
+    if now >= signal_time:
+        signal_time = signal_time.replace(day=signal_time.day + 1)
+    
+    wait_seconds = (signal_time - now).total_seconds()
+    print(f"시그널 생성까지 {wait_seconds/3600:.1f}시간 대기 중...")
     time.sleep(wait_seconds)
 
-def wait_until_trading_time():
-    """오전 9시까지 대기"""
+def wait_until_execution_time():
+    """시그널 실행 시간(09:05:00)까지 대기"""
     now = datetime.now()
-    trading_time = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    execution_time = now.replace(hour=9, minute=5, second=0, microsecond=0)
     
-    if now >= trading_time:
-        trading_time = trading_time.replace(day=trading_time.day + 1)
+    if now >= execution_time:
+        execution_time = execution_time.replace(day=execution_time.day + 1)
     
-    wait_seconds = (trading_time - now).total_seconds()
-    print(f"거래 시작까지 {wait_seconds/3600:.1f}시간 대기 중...")
+    wait_seconds = (execution_time - now).total_seconds()
+    print(f"시그널 실행까지 {wait_seconds/3600:.1f}시간 대기 중...")
     time.sleep(wait_seconds)
 
 def run_trading_system():
@@ -332,25 +330,25 @@ KRW 잔고: {next((item['amount'] for item in portfolio_data if item['ticker'] =
 총 {len(selected_coins)}개: {', '.join(selected_coins)}
 """)
         
-        # 오늘 날짜
-        today = datetime.now().strftime("%Y-%m-%d")
-        
         # 3. MRHA 시그널 생성
         print("\n=== MRHA 시그널 생성 ===")
         signals = []
         signal_summary = {'BUY': [], 'SELL': [], 'HOLD': []}
         
+        # 전일 날짜 계산
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        
         for coin in top_coins:
             try:
-                # MRHA 분석 실행
+                # MRHA 분석 실행 (전일 일봉 포함 365일 데이터)
                 bot = MRHATradingSystem(coin['ticker'], "day", count=365)
                 bot.run_analysis()
                 
-                # 오늘 날짜의 시그널 확인
+                # 전일 시그널 확인
                 last_signal = "HOLD"
                 for _, trade in bot.trades.iterrows():
                     trade_date = trade['Date'].strftime("%Y-%m-%d")
-                    if trade_date == today:
+                    if trade_date == yesterday:
                         last_signal = "BUY" if trade['Type'] == 'Buy' else "SELL"
                         break
                 
@@ -380,10 +378,10 @@ HOLD: {', '.join(signal_summary['HOLD']) if signal_summary['HOLD'] else '없음'
         notion_manager.update_daily_signals(signals)
         print("시그널 DB 업데이트 완료")
         
-        # 5. 오전 9시까지 대기
-        print("\n오전 9시까지 대기 중... (시그널 실행)")
-        slack.send_notification("⏳ 오전 9시까지 대기 중... (시그널 실행)")
-        wait_until_trading_time()
+        # 5. 시그널 실행 시간까지 대기
+        print("\n시그널 실행 시간까지 대기 중...")
+        slack.send_notification("⏳ 시그널 실행 시간까지 대기 중...")
+        wait_until_execution_time()
         
         # 6. 계좌 정보 재조회
         print("\n=== 계좌 정보 재조회 ===")
@@ -446,8 +444,8 @@ HOLD: {', '.join(signal_summary['HOLD']) if signal_summary['HOLD'] else '없음'
 if __name__ == "__main__":
     while True:
         try:
-            # 다음날 00:00까지 대기
-            wait_until_next_day()
+            # 시그널 생성 시간까지 대기
+            wait_until_signal_generation_time()
             # 트레이딩 시스템 실행
             run_trading_system()
         except Exception as e:
