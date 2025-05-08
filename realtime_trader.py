@@ -295,11 +295,17 @@ def run_trading_system():
     secret_key = os.getenv('UPBIT_SECRET_KEY')
     upbit = pyupbit.Upbit(access_key, secret_key)
     
-    # 테스트 시작 알림
-    slack.send_notification(f"""
-🚀 트레이딩 시스템 시작
+    # 시작 알림 (에러 처리 추가)
+    try:
+        print("Slack 메시지 전송 시도...")
+        result = slack.send_notification(f"""
+🚀 MRHA 트레이딩 시스템 시작
 시작시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+상태: 정상 작동 중
 """)
+        print(f"Slack 메시지 전송 결과: {'성공' if result else '실패'}")
+    except Exception as e:
+        print(f"Slack 메시지 전송 중 에러 발생: {e}")
     
     try:
         # 1. 계좌 잔고 조회 및 포트폴리오 DB 업데이트
