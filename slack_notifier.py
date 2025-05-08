@@ -11,17 +11,27 @@ class SlackNotifier:
     def __init__(self):
         self.client = WebClient(token=os.getenv('SLACK_BOT_TOKEN'))
         self.channel = os.getenv('SLACK_CHANNEL')
+        print(f"SlackNotifier 초기화: 채널={self.channel}")
         
     def send_notification(self, message):
         """기본 Slack 메시지 전송"""
         try:
-            self.client.chat_postMessage(
+            print(f"Slack 메시지 전송 시도: {message[:50]}...")
+            response = self.client.chat_postMessage(
                 channel=self.channel,
                 text=message
             )
-            return True
+            if response["ok"]:
+                print("Slack 메시지 전송 성공!")
+                return True
+            else:
+                print(f"Slack 메시지 전송 실패: {response.get('error', '알 수 없는 에러')}")
+                return False
         except SlackApiError as e:
-            print(f"Slack notification error: {e}")
+            print(f"Slack API 에러: {e.response['error']}")
+            return False
+        except Exception as e:
+            print(f"Slack 메시지 전송 중 예상치 못한 에러: {str(e)}")
             return False
             
     def notify_signal_execution(self, execution_type, data):
